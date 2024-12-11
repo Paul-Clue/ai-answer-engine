@@ -9,9 +9,7 @@ type Message = {
 
 export default function Home() {
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "ai", content: "Hello! How can I help you today?" },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([{ role: "ai", content: "Hello! How can I help you today?" }]);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSend = async () => {
@@ -19,6 +17,7 @@ export default function Home() {
 
     // Add user message to the conversation
     const userMessage = { role: "user" as const, content: message };
+  
     setMessages(prev => [...prev, userMessage]);
     setMessage("");
     setIsLoading(true);
@@ -33,6 +32,21 @@ export default function Home() {
       });
 
       // TODO: Handle the response from the chat API to display the AI response in the UI
+      const data = await response.json();
+      if (response.ok) {
+        console.log("data", data.message);
+        if (data.message === "404") {
+          alert(`Please check the URL and try again.\n\nThe URL you entered was: ${data.url}`);
+          setMessages(prev => [...prev, { role: "ai" as const, content: "I'm sorry, but I couldn't find the page you're looking for." }]);
+        } else {
+          const aiResponse = { role: "ai" as const, content: data.message };
+          setMessages(prev => [...prev, aiResponse]);
+        }
+        // console.log("data", data);
+      } else {
+        console.error("Error:", data);
+      }
+      console.log("response", response);
 
 
 
