@@ -18,6 +18,8 @@ export async function POST(req: NextRequest) {
   const urlPattern = /(https?:\/\/[^\s]+)/g;
   const urls = userQuery.message.match(urlPattern);
   const url = urls ? urls[0] : null;
+  let errorMessage: string | null = null;
+  let scrapedData: any = null;
 
   // console.log("url", url);
 
@@ -26,9 +28,21 @@ export async function POST(req: NextRequest) {
       // const { data } = await axios.get(url);
       const browser = await puppeteer.launch();
       const page = await browser.newPage();
-      await page.goto(url);
-
+      // await page.goto(url);
+      try {
+        await page.goto(url, { waitUntil: 'networkidle0', timeout: 300 });
+      } catch (navigationError: unknown) {
+        errorMessage = navigationError instanceof Error ? navigationError.message : 'Unknown error';
+        if (errorMessage === "Navigation timeout of 300 ms exceeded") {
+          errorMessage = "";
+        }
+        console.error('Navigation error:', errorMessage);
+        await browser.close();
+        return errorMessage;
+      }
+      // console.log("PAGE", err);
       const content = await page.content();
+      // console.log("CONTENT", content);
       const $ = cheerio.load(content);
 
       const title = $("title").text();
@@ -81,11 +95,20 @@ export async function POST(req: NextRequest) {
         paragraphs.includes("404 Page Not Found") ||
         paragraphs.includes("404 Error") ||
         paragraphs.includes("404 Page Not Found Error") ||
-        paragraphs.includes("404 Page Not Found Error")
+        paragraphs.includes("404 Page Not Found Error") ||
+        divs.includes("404") ||
+        divs.includes("Not Found") ||
+        divs.includes("Page Not Found") ||
+        divs.includes("Error") ||
+        divs.includes("Error 404") ||
+        divs.includes("404 Not Found") ||
+        divs.includes("404 Page Not Found") ||
+        divs.includes("404 Error") ||
+        divs.includes("404 Page Not Found Error") ||
+        divs.includes("404 Page Not Found Error")
       ) {
         await browser.close();
         return "404";
-        // console.log("No page 404");
       } else {
         // console.log("Title:", title);
         // console.log("Headings:", headings);
@@ -99,8 +122,11 @@ export async function POST(req: NextRequest) {
       console.error("Error fetching data:", error);
     }
   }
-  const scrapedData = await fetchData();
-  console.log("scrapedData", scrapedData);
+  
+  if (url) {
+    scrapedData = await fetchData();
+  }
+  // console.log("SCRAPED DATA", scrapedData);
 
   // Using Groq to generate response
   try {
@@ -119,7 +145,13 @@ export async function POST(req: NextRequest) {
     // const aiResponse = chatCompletion.choices[0].message.content);
 
     // console.log(chatCompletion.choices[0].message.content);
-    return NextResponse.json({ message: url, url: url }, { status: 200 });
+    if (scrapedData === "404" || errorMessage) {
+      // return NextResponse.json({ message: "404", url: url }, { status: 400 });
+      return NextResponse.json({ message: "404", url: url });
+    } else {
+      // return NextResponse.json({ message: scrapedData }, { status: 200 });
+      return NextResponse.json({ message: url, url: url }, { status: 200 });
+    }
     // return NextResponse.json({ message: aiResponse }, { status: 200 });
   } catch (error) {
     console.log(error);

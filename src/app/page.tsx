@@ -34,9 +34,9 @@ export default function Home() {
       // TODO: Handle the response from the chat API to display the AI response in the UI
       const data = await response.json();
       if (response.ok) {
-        console.log("data", data.message);
+        // console.log("data", data.message);
         if (data.message === "404") {
-          alert(`Please check the URL and try again.\n\nThe URL you entered was: ${data.url}`);
+          alert(`Please check the URL and try again.\n\nThe URL you entered was:\n ${data.url}`);
           setMessages(prev => [...prev, { role: "ai" as const, content: "I'm sorry, but I couldn't find the page you're looking for." }]);
         } else {
           const aiResponse = { role: "ai" as const, content: data.message };
