@@ -31,26 +31,26 @@ export default function Home() {
         body: JSON.stringify({ message }),
       });
 
-      // TODO: Handle the response from the chat API to display the AI response in the UI
       const data = await response.json();
+
       if (response.ok) {
-        // console.log("data", data.message);
         if (data.message === "404") {
           alert(`Please check the URL and try again.\n\nThe URL you entered was:\n ${data.url}`);
           setMessages(prev => [...prev, { role: "ai" as const, content: "I'm sorry, but I couldn't find the page you're looking for." }]);
         } else {
-          const aiResponse = { role: "ai" as const, content: data.message };
-          setMessages(prev => [...prev, aiResponse]);
+          const aiResponse = typeof data.message === 'object' 
+        ? JSON.stringify(data.message.response) 
+        : data.message.response.toString();
+          // setMessages(prev => [...prev, aiResponse]);
+          console.log("AI RESPONSE", aiResponse);
+          setMessages(prev => [...prev, { 
+            role: "ai", 
+            content: aiResponse
+          }]);
         }
-        // console.log("data", data);
       } else {
         console.error("Error:", data);
       }
-      console.log("response", response);
-
-
-
-
     } catch (error) {
       console.error("Error:", error);
     } finally {
@@ -58,9 +58,6 @@ export default function Home() {
     }
   };
 
-
-  // TODO: Modify the color schemes, fonts, and UI as needed for a good user experience
-  // Refer to the Tailwind CSS docs here: https://tailwindcss.com/docs/customizing-colors, and here: https://tailwindcss.com/docs/hover-focus-and-other-states
   return (
     <div className="flex flex-col h-screen bg-gray-900">
       {/* Header */}

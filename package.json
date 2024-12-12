@@ -17,6 +17,7 @@
     "groq-sdk": "^0.9.0",
     "ioredis": "^5.4.1",
     "next": "15.0.4",
+    "openai": "^4.76.1",
     "prettier": "^3.4.2",
     "puppeteer": "^23.10.3",
     "react": "^19.0.0",

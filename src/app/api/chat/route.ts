@@ -1,15 +1,26 @@
-// TODO: Implement the chat API with Groq and web scraping with Cheerio and Puppeteer
-// Refer to the Next.js Docs on how to read the Request body: https://nextjs.org/docs/app/building-your-application/routing/route-handlers
-// Refer to the Groq SDK here on how to use an LLM: https://www.npmjs.com/package/groq-sdk
-// Refer to the Cheerio docs here on how to parse HTML: https://cheerio.js.org/docs/basics/loading
-// Refer to Puppeteer docs here: https://pptr.dev/guides/what-is-puppeteer
 import { NextRequest, NextResponse } from "next/server";
 import { Groq } from "groq-sdk";
-import axios from "axios";
+// import axios from "axios";
 // import cheerio from "cheerio";
 import * as cheerio from "cheerio";
 import puppeteer from "puppeteer";
 import { redis } from "@/lib/redisCache";
+// import OpenAI from "openai";
+// type ScrapedData = string | {
+//   title: string;
+//   headings: string[];
+//   paragraphs: string[];
+//   links: string[];
+//   divs: string[];
+// } | null;
+type ScrapedData =
+  | string
+  | {
+      paragraphs: string[];
+      // links: string[];
+      // divs: string[];
+    }
+  | null;
 
 export async function POST(req: NextRequest) {
   const userQuery = await req.json();
@@ -19,32 +30,17 @@ export async function POST(req: NextRequest) {
   const urls = userQuery.message.match(urlPattern);
   const url = urls ? urls[0] : null;
   const cleanMessage: string = userQuery.message.replace(urlPattern, "").trim();
-  // console.log("CLEAN MESSAGE", cleanMessage);
   let errorMessage: string | null = null;
-  let scrapedData:
-    | string
-    | {
-        title: string;
-        headings: string[];
-        paragraphs: string[];
-        links: string[];
-        divs: string[];
-      }
-    | null = null;
+  let scrapedData: ScrapedData = null;
 
-  async function aiResponse(
-    message: string,
-    scrapedData: {
-      title: string;
-      headings: string[];
-      paragraphs: string[];
-      links: string[];
-      divs: string[];
-    }
-  ) {
-    const client = new Groq({
-      apiKey: process.env["GROQ_API_KEY"],
-    });
+  const client = new Groq({
+    apiKey: process.env["GROQ_API_KEY"],
+  });
+  // const openai = new OpenAI({
+  //   apiKey: process.env.OPENAI_API_KEY
+  // });
+
+  async function aiResponse(message: string, scrapedData: ScrapedData) {
     const systemPrompt = `
       You are a knowledgeable assistant focused on providing accurate, well-sourced information.
 
@@ -80,20 +76,39 @@ export async function POST(req: NextRequest) {
     //       Links: ${scrapedData.links}
     //       Divs: ${scrapedData.divs}
     const chatCompletion = await client.chat.completions.create({
-      // messages: [
-      //   { role: "user", content: message + " " + scrapedData },
-      //   { role: "system", content: systemPrompt },
-      // ],
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: cleanMessage },
-        { 
-          role: "assistant", 
-          content: `Available website data:\n${JSON.stringify(scrapedData, null, 2)}` 
-        }
+        {
+          role: "assistant",
+          content: `Available website data:\n${JSON.stringify(scrapedData, null, 2)}`,
+        },
       ],
-      model: "llama3-8b-8192",
+      // model: "llama3-8b-8192",
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      response_format: { type: "json_object" },
     });
+
+    // const chatCompletion = await openai.chat.completions.create({
+    //   model: "gpt-4o",  // or "gpt-3.5-turbo" for a cheaper option
+    //   messages: [
+    //     {
+    //       role: "system",
+    //       content: systemPrompt
+    //     },
+    //     {
+    //       role: "user",
+    //       content: message
+    //     },
+    //     {
+    //       role: "assistant",
+    //       content: `Available website data:\n${JSON.stringify(scrapedData, null, 2)}`
+    //     }
+    //   ],
+    //   temperature: 0.7,
+    //   // max_tokens: 1000,
+    // });
 
     // const aiResponse = chatCompletion.choices[0].message.content;
     // return aiResponse;
@@ -102,23 +117,28 @@ export async function POST(req: NextRequest) {
       if (!content) {
         throw new Error("No response from AI");
       }
-      
-      const aiResponse: {
-        response: string;
-        followUpQuestions: string[];
-      } = JSON.parse(content);
+      // const aiResponse: {
+      //   response: string;
+      //   followUpQuestions: string[];
+      // } = JSON.parse(content);
+      // const aiResponse = JSON.parse(content);
+      // console.log("CONTENT", aiResponse);
 
-      return NextResponse.json({
-        message: aiResponse.response,
-        followUpQuestions: aiResponse.followUpQuestions,
-        url: url
-      });
+      // return NextResponse.json({
+      //   message: aiResponse.response,
+      //   followUpQuestions: aiResponse.followUpQuestions
+      // });
+      // return NextResponse.json({content});
+      return JSON.parse(content);
     } catch (error) {
       console.error("Failed to parse AI response as JSON:", error);
-      return NextResponse.json({ 
-        message: "Error processing response", 
-        error: "Invalid response format" 
-      }, { status: 500 });
+      return NextResponse.json(
+        {
+          message: "Error processing response",
+          error: "Invalid response format",
+        },
+        { status: 500 }
+      );
     }
   }
 
@@ -129,18 +149,17 @@ export async function POST(req: NextRequest) {
       const page = await browser.newPage();
 
       try {
-        await page.goto(url, { waitUntil: "networkidle0", timeout: 300 });
+        await page.goto(url, { waitUntil: "networkidle0", timeout: 15000 });
       } catch (navigationError: unknown) {
         errorMessage =
           navigationError instanceof Error
             ? navigationError.message
             : "Unknown error";
-        if (errorMessage === "Navigation timeout of 300 ms exceeded") {
+        if (errorMessage === "Navigation timeout of 15000 ms exceeded") {
           errorMessage = "";
         }
         console.error("Navigation error:", errorMessage);
         await browser.close();
-        return errorMessage;
       }
 
       const content = await page.content();
@@ -212,45 +231,61 @@ export async function POST(req: NextRequest) {
         await browser.close();
         return "404";
       } else {
-        // console.log("Title:", title);
-        // console.log("Headings:", headings);
-        // console.log("Paragraphs:", paragraphs);
-        // console.log("Links:", links);
-        // console.log("Divs:", divs);
         await browser.close();
-        return { title, headings, paragraphs, links, divs };
+        // return { title, headings, paragraphs, links, divs };
+        return { paragraphs };
       }
     } catch (error) {
       console.error("Error fetching data:", error);
     }
   }
-
+  console.log("URL", url);
   if (url) {
-    const result = await fetchData();
-    scrapedData = result || null;
-  }
-
-  try {
-    if (scrapedData === "404" || errorMessage) {
-      // return NextResponse.json({ message: "404", url: url }, { status: 400 });
-      return NextResponse.json({ message: "404", url: url });
+    console.log(1)
+    const cacheGet = await redis.get(url);
+    if (cacheGet) {
+      const response = await aiResponse(
+        cleanMessage,
+        cacheGet as {
+          title: string;
+          headings: string[];
+          paragraphs: string[];
+          links: string[];
+          divs: string[];
+        }
+      );
+      console.log("RESPONSE FROM CACHE", response);
+      return NextResponse.json(
+        { message: response, url: url },
+        { status: 200 }
+      );
     } else {
-      // CACHING / DATABASE STUFF
-      // const cache = await redis.get(url);
-      // if (cache) {
-      //   return NextResponse.json({ message: cache, url: url }, { status: 200 });
-      // } else {
-      //   await redis.set(url, JSON.stringify(scrapedData));
-      // }
-
-      // USING GROQ TO GENERATE RESPONSE
-      // const response = await aiResponse(cleanMessage, scrapedData);
-      
-      
-      return NextResponse.json({ message: url, url: url }, { status: 200 });
+      console.log(2)
+      const result = await fetchData();
+      scrapedData = result || null;
+      if (scrapedData === "404" || errorMessage) {
+        return NextResponse.json({ message: "404", url: url });
+      } else {
+        console.log(3)
+        await redis.set(url, JSON.stringify(scrapedData));
+        const response = await aiResponse(
+          cleanMessage,
+          scrapedData as {
+            title: string;
+            headings: string[];
+            paragraphs: string[];
+            links: string[];
+            divs: string[];
+          }
+        );
+        return NextResponse.json(
+          { message: response, url: url },
+          { status: 200 }
+        );
+      }
     }
-  } catch (error) {
-    console.log(error);
-    return NextResponse.json({ message: "Error" }, { status: 500 });
+  } else {
+    const response = await aiResponse(cleanMessage, null);
+    return NextResponse.json({ message: response, url: url }, { status: 200 });
   }
 }
