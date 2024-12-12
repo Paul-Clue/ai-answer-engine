@@ -239,9 +239,7 @@ export async function POST(req: NextRequest) {
       console.error("Error fetching data:", error);
     }
   }
-  console.log("URL", url);
   if (url) {
-    console.log(1)
     const cacheGet = await redis.get(url);
     if (cacheGet) {
       const response = await aiResponse(
@@ -254,19 +252,16 @@ export async function POST(req: NextRequest) {
           divs: string[];
         }
       );
-      console.log("RESPONSE FROM CACHE", response);
       return NextResponse.json(
         { message: response, url: url },
         { status: 200 }
       );
     } else {
-      console.log(2)
       const result = await fetchData();
       scrapedData = result || null;
       if (scrapedData === "404" || errorMessage) {
         return NextResponse.json({ message: "404", url: url });
       } else {
-        console.log(3)
         await redis.set(url, JSON.stringify(scrapedData));
         const response = await aiResponse(
           cleanMessage,

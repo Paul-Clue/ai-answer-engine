@@ -1,18 +1,30 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import { useState } from "react";
+import { useEffect } from "react";
 
 type Message = {
   role: "user" | "ai";
   content: string;
 };
 
-export default function Home() {
+export default function MessagePage() {
+  const params = useParams();
+  const messageId = params.id as string;
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "ai", content: "Hello! How can I help you today?" },
-  ]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [chat, setChat] = useState(false);
+
+  // async function handleSend() {
+
+  // }
+
+  async function changeToChat() {
+    setChat(true);
+  }
 
   const handleSend = async () => {
     if (!message.trim()) return;
@@ -22,7 +34,7 @@ export default function Home() {
 
     setMessages(prev => [...prev, userMessage]);
     setMessage("");
-    setIsLoading(true);
+    setLoading(true);
 
     try {
       const response = await fetch("/api/chat", {
@@ -69,31 +81,28 @@ export default function Home() {
     } catch (error) {
       console.error("Error:", error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleSaveMessage = async () => {
-    try {
-      const response = await fetch("/api/savedMessage", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ messages }),
-      });
-  
-      const data = await response.json();
-      const shareUrl = `${window.location.origin}/savedMessage/${data.id}`;
-      
-      await navigator.clipboard.writeText(shareUrl);
-      alert("Link copied to clipboard!"); // Or use a toast notification
-      
-    } catch (error) {
-      console.error("Error saving message:", error);
-      alert("Failed to save message");
+  useEffect(() => {
+    async function fetchMessage() {
+      try {
+        const response = await fetch(`/api/savedMessage?id=${messageId}`);
+        const data = await response.json();
+        setMessages(data.message);
+      } catch (error) {
+        console.error("Error fetching message:", error);
+      } finally {
+        setPageLoading(false);
+      }
     }
-  };
+
+    fetchMessage();
+  }, [messageId]);
+
+  if (pageLoading) return <div>Loading...</div>;
+  // if (!message) return <div>Message not found</div>;
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
@@ -102,12 +111,12 @@ export default function Home() {
         <div className="max-w-3xl ">
           <h1 className="text-xl font-semibold text-white">Chat</h1>
         </div>
-        <button
+        {/* <button
           onClick={handleSaveMessage}
           className="bg-cyan-600 text-white px-5 py-3 rounded-xl hover:bg-cyan-700 transition-all disabled:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Share Message
-        </button>
+        </button> */}
       </div>
 
       {/* Messages Container */}
@@ -133,7 +142,7 @@ export default function Home() {
               </div>
             </div>
           ))}
-          {isLoading && (
+          {loading && (
             <div className="flex gap-4 mb-4">
               <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center">
                 <svg
@@ -168,13 +177,23 @@ export default function Home() {
               placeholder="Type your message..."
               className="flex-1 rounded-xl border border-gray-700 bg-gray-900 px-4 py-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent placeholder-gray-400"
             />
-            <button
-              onClick={handleSend}
-              disabled={isLoading}
-              className="bg-cyan-600 text-white px-5 py-3 rounded-xl hover:bg-cyan-700 transition-all disabled:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? "Sending..." : "Send"}
-            </button>
+            {chat ? (
+              <button
+                onClick={handleSend}
+                disabled={loading}
+                className="bg-cyan-600 text-white px-5 py-3 rounded-xl hover:bg-cyan-700 transition-all disabled:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? "Sending..." : "Send"}
+              </button>
+            ) : (
+              <button
+                onClick={changeToChat}
+                disabled={loading}
+                className="bg-cyan-600 text-white px-5 py-3 rounded-xl hover:bg-cyan-700 transition-all disabled:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Continue Chat
+              </button>
+            )}
           </div>
         </div>
       </div>
