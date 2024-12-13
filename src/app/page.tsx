@@ -8,6 +8,7 @@ type Message = {
 };
 
 export default function Home() {
+  const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([
     { role: "ai", content: "Hello! How can I help you today?" },
@@ -34,6 +35,7 @@ export default function Home() {
       });
 
       const data = await response.json();
+      console.log("DATA", data.message.followUpQuestions);
 
       if (response.ok) {
         if (data.message === "404") {
@@ -62,6 +64,7 @@ export default function Home() {
               content: aiResponse,
             },
           ]);
+          setFollowUpQuestions(data.message.followUpQuestions);
         }
       } else {
         console.error("Error:", data);
@@ -82,17 +85,21 @@ export default function Home() {
         },
         body: JSON.stringify({ messages }),
       });
-  
+
       const data = await response.json();
       const shareUrl = `${window.location.origin}/savedMessage/${data.id}`;
-      
+
       await navigator.clipboard.writeText(shareUrl);
       alert("Link copied to clipboard!"); // Or use a toast notification
-      
     } catch (error) {
       console.error("Error saving message:", error);
       alert("Failed to save message");
     }
+  };
+
+  const handleFollowUpQuestion = (question: string) => {
+    setMessage(question);
+    setFollowUpQuestions([]);
   };
 
   return (
@@ -100,7 +107,7 @@ export default function Home() {
       {/* Header */}
       <div className="flex flex-row justify-between w-full bg-gray-800 border-b border-gray-700 p-4">
         <div className="max-w-3xl ">
-          <h1 className="text-xl font-semibold text-white">Chat</h1>
+          <h1 className="animate-text-pulse text-xl font-semibold text-white">Source Of Truth</h1>
         </div>
         <button
           onClick={handleSaveMessage}
@@ -159,22 +166,38 @@ export default function Home() {
       {/* Input Area */}
       <div className="fixed bottom-0 w-full bg-gray-800 border-t border-gray-700 p-4">
         <div className="max-w-3xl mx-auto">
-          <div className="flex gap-3 items-center">
-            <input
-              type="text"
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleSend()}
-              placeholder="Type your message..."
-              className="flex-1 rounded-xl border border-gray-700 bg-gray-900 px-4 py-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent placeholder-gray-400"
-            />
-            <button
-              onClick={handleSend}
-              disabled={isLoading}
-              className="bg-cyan-600 text-white px-5 py-3 rounded-xl hover:bg-cyan-700 transition-all disabled:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? "Sending..." : "Send"}
-            </button>
+          <div className="flex flex-col gap-3 items-center">
+            {/* section: follow up questions */}
+            <div className="flex flex-row mt-[-1rem] w-full">
+              {followUpQuestions.map((question, index) => (
+                <div
+                  className="text-[0.625rem] border border-gray-700 text-white bg-black px-2 py-1 rounded-xl hover:bg-gray-900 hover:border-green-600 hover:cursor-pointer hover:scale-110 
+        transition-all duration-200"
+                  key={index}
+                >
+                  <button onClick={() => handleFollowUpQuestion(question)}>
+                    {question}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-row w-full gap-3">
+              <input
+                type="text"
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleSend()}
+                placeholder="Type your message..."
+                className="flex-1 w-full rounded-xl border border-gray-700 bg-gray-900 px-4 py-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent placeholder-gray-400"
+              />
+              <button
+                onClick={handleSend}
+                disabled={isLoading}
+                className="bg-cyan-600 text-white px-5 py-3 rounded-xl hover:bg-cyan-700 transition-all disabled:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? "Sending..." : "Send"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
