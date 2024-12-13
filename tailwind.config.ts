@@ -14,6 +14,7 @@ export default {
       },
       animation: {
         'text-pulse': 'textPulse 2s ease-in-out infinite',
+        'border-flow': 'borderFlow 4s linear infinite',
       },
       keyframes: {
         textPulse: {
@@ -25,6 +26,26 @@ export default {
             color: '#16A34A', // cyan-400
             transform: 'scale(1.1)',
           },
+        },
+        // borderFlow: {
+        //   '0%': { 
+        //     borderImage: 'linear-gradient(90deg, transparent 0%, #16A34A 50%, transparent 100%) 1',
+        //     borderImageSlice: '1',
+        //     backgroundPosition: '-200% 0',
+        //   },
+        //   '100%': { 
+        //     borderImage: 'linear-gradient(90deg, transparent 0%, #16A34A 50%, transparent 100%) 1',
+        //     borderImageSlice: '1',
+        //     backgroundPosition: '200% 0',
+        //   },
+        // },
+        borderFlow: {
+          '0%': { 
+            backgroundPosition: '-200% 100%'
+          },
+          '100%': { 
+            backgroundPosition: '200% 100%'
+          }
         },
       },
     },

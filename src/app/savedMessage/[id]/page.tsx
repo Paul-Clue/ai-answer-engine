@@ -107,7 +107,11 @@ export default function MessagePage() {
   return (
     <div className="flex flex-col h-screen bg-gray-900">
       {/* Header */}
-      <div className="flex flex-row justify-between w-full bg-gray-800 border-b border-gray-700 p-4">
+      <div className="flex flex-row justify-between w-full bg-gray-800 p-4 
+        border-t-2 border-t-gray-700
+        bg-gradient-to-r from-transparent via-green-600 to-transparent
+        bg-[length:200%_5px] bg-no-repeat bg-bottom
+        animate-border-flow">
         <div className="max-w-3xl ">
           <h1 className="text-xl font-semibold text-white">Chat</h1>
         </div>
@@ -181,7 +185,7 @@ export default function MessagePage() {
               <button
                 onClick={handleSend}
                 disabled={loading}
-                className="bg-cyan-600 text-white px-5 py-3 rounded-xl hover:bg-cyan-700 transition-all disabled:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-cyan-600 text-white px-5 py-3 rounded-xl border border-gray-700 hover:border-green-600 hover:bg-cyan-700 transition-all disabled:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Sending..." : "Send"}
               </button>
@@ -189,7 +193,7 @@ export default function MessagePage() {
               <button
                 onClick={changeToChat}
                 disabled={loading}
-                className="bg-cyan-600 text-white px-5 py-3 rounded-xl hover:bg-cyan-700 transition-all disabled:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-cyan-600 text-white px-5 py-3 rounded-xl border border-gray-700 hover:border-green-600 hover:bg-cyan-700 transition-all disabled:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Continue Chat
               </button>
