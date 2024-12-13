@@ -13,7 +13,7 @@ export default {
         foreground: "var(--foreground)",
       },
       animation: {
-        'text-pulse': 'textPulse 2s ease-in-out infinite',
+        'text-pulse': 'textPulse 7s ease-in-out infinite',
         'border-flow': 'borderFlow 4s linear infinite',
       },
       keyframes: {
@@ -23,8 +23,8 @@ export default {
             transform: 'scale(1)',
           },
           '50%': { 
-            color: '#16A34A', // cyan-400
-            transform: 'scale(1.1)',
+            color: '#1A1A1A',
+            transform: 'scale(1.05)',
           },
         },
         // borderFlow: {

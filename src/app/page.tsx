@@ -1,13 +1,93 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import * as Plot from "@observablehq/plot";
+import Papa from "papaparse";
+import { CloudArrowUpIcon } from "@heroicons/react/24/outline";
 
 type Message = {
   role: "user" | "ai";
   content: string;
 };
 
+type ChartData = {
+  x: number;
+  y: number;
+}[];
+
 export default function Home() {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [chartData, setChartData] = useState<ChartData>([]);
+  // section: sample data
+  // useEffect(() => {
+  //   // Sample data
+  //   const data = [
+  //     { x: 1, y: 2 },
+  //     { x: 2, y: 3 },
+  //     { x: 3, y: 4 },
+  //   ];
+
+  //   // Create plot
+  //   const chart = Plot.plot({
+  //     style: {
+  //       background: "#ffffff",
+  //       color: "black",
+  //     },
+  //     marks: [
+  //       Plot.dot(data, {
+  //         x: "x",
+  //         y: "y",
+  //       }),
+  //     ],
+  //   });
+  //   // Clear previous chart if any
+  //   if (chartRef.current) {
+  //     chartRef.current.innerHTML = "";
+  //     chartRef.current.appendChild(chart);
+  //   }
+  //   // Cleanup on unmount
+  //   return () => {
+  //     if (chartRef.current) {
+  //       chartRef.current.innerHTML = "";
+  //     }
+  //   };
+  // }, []);
+
+  // Create boxplot
+  const createBoxPlot = (data: ChartData) => {
+    // Assuming your CSV has a 'value' column
+    const chart = Plot.plot({
+      style: {
+        background: "#ffffff",
+        color: "black",
+      },
+      marks: [
+        Plot.boxY(data, {
+          x: "category", // Change this to your category column name
+          y: "value", // Change this to your value column name
+        }),
+      ],
+    });
+
+    if (chartRef.current) {
+      chartRef.current.innerHTML = "";
+      chartRef.current.appendChild(chart);
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      Papa.parse(file, {
+        header: true,
+        complete: results => {
+          setChartData(results.data as ChartData);
+          createBoxPlot(results.data as ChartData);
+        },
+      });
+    }
+  };
+
   const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([
@@ -113,9 +193,7 @@ export default function Home() {
         animate-border-flow"
       >
         <div className="max-w-3xl ">
-          <h1 className="text-xl font-semibold text-white">
-            Source Of Truth
-          </h1>
+          <h1 className="text-xl font-semibold text-white">Source Of Truth</h1>
         </div>
         <button
           onClick={handleSaveMessage}
@@ -126,8 +204,45 @@ export default function Home() {
       </div>
 
       {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto pb-32 pt-4">
-        <div className="max-w-3xl mx-auto px-4">
+      <div className="flex-1 flex flex-row overflow-y-auto px-4 pb-32 pt-4">
+        <div className="flex flex-col w-1/3 px-2 border border-gray-700 overflow-y-auto">
+          {/* section: chart */}
+          <div className="flex-1 flex flex-row justify-between">
+            <h1 className="text-xl text-center border-b border-gray-700 font-semibold text-white">
+              <span className="text-white animate-text-pulse">-</span> Hey
+              there! <span className="text-white animate-text-pulse">-</span>
+            </h1>
+            <div className="pt-1">
+              {/* <input
+                type="file"
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="block w-full text-sm text-gray-500
+            file:mr-4 file:py-1 file:px-2
+            file:rounded-full file:border-0
+            file:text-sm file:font-semibold
+            file:bg-cyan-600 file:text-white
+            hover:file:bg-cyan-700"
+              /> */}
+            </div>
+            
+             <label className="flex items-center cursor-pointer">
+          <CloudArrowUpIcon className="h-6 w-6 text-gray-500 mr-2" />
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <span className="text-sm text-gray-500">Upload CSV</span>
+        </label>
+          </div>
+          <div
+            className="chart-container flex flex-col w-full h-full"
+            ref={chartRef}
+          ></div>
+        </div>
+        <div className="max-w-3xl text-sm mx-auto px-4">
           {messages.map((msg, index) => (
             <div
               key={index}
