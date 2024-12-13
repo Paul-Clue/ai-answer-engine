@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import * as Plot from "@observablehq/plot";
+import * as d3 from "d3";
+import ReactMarkdown from 'react-markdown';
 import Papa from "papaparse";
 import { CloudArrowUpIcon } from "@heroicons/react/24/outline";
 
@@ -10,61 +12,106 @@ type Message = {
   content: string;
 };
 
-type ChartData = {
-  x: number;
-  y: number;
-}[];
+// type ChartData = {
+//   x: number;
+//   y: number;
+// }[];
 
 export default function Home() {
   const chartRef = useRef<HTMLDivElement>(null);
-  const [chartData, setChartData] = useState<ChartData>([]);
+  // const chartRef2 = useRef<HTMLDivElement>(null);
+  const [analysis1, setAnalysis1] = useState<string>("");
+  // const [analysis2, setAnalysis2] = useState<string>("");
+  const [chartData, setChartData] = useState<
+    { Category: string; Value: number }[]
+  >([]);
   // section: sample data
-  // useEffect(() => {
-  //   // Sample data
-  //   const data = [
-  //     { x: 1, y: 2 },
-  //     { x: 2, y: 3 },
-  //     { x: 3, y: 4 },
-  //   ];
+  const analysisRef = useRef<HTMLDivElement>(null);
 
-  //   // Create plot
-  //   const chart = Plot.plot({
-  //     style: {
-  //       background: "#ffffff",
-  //       color: "black",
-  //     },
-  //     marks: [
-  //       Plot.dot(data, {
-  //         x: "x",
-  //         y: "y",
-  //       }),
-  //     ],
-  //   });
-  //   // Clear previous chart if any
-  //   if (chartRef.current) {
-  //     chartRef.current.innerHTML = "";
-  //     chartRef.current.appendChild(chart);
-  //   }
-  //   // Cleanup on unmount
-  //   return () => {
-  //     if (chartRef.current) {
-  //       chartRef.current.innerHTML = "";
-  //     }
-  //   };
-  // }, []);
+  useEffect(() => {
+    if (analysis1 && analysisRef.current) {
+      analysisRef.current.scrollIntoView({ behavior: "smooth" });
+      analysisRef.current.focus();
+    }
+  }, [analysis1]);
 
   // Create boxplot
-  const createBoxPlot = (data: ChartData) => {
-    // Assuming your CSV has a 'value' column
+  const svgToImage = async (svg: SVGElement): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([svgData], {
+        type: "image/svg+xml;charset=utf-8",
+      });
+      const url = URL.createObjectURL(svgBlob);
+
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx?.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL("image/png"));
+      };
+
+      img.onerror = reject;
+      img.src = url;
+    });
+  };
+
+  const zoomIn = (chartRef: HTMLDivElement) => {
+    const svg = d3.select(chartRef.querySelector("svg"));
+    if (!svg.empty()) {
+      // Set initial properties
+      svg.style("cursor", "grab");
+
+      // Select the content group
+      const content = svg.selectAll("g");
+
+      // Initialize zoom behavior
+      const zoom = d3
+        .zoom()
+        .scaleExtent([0.1, 4])
+        .on("zoom", event => {
+          content.attr("transform", event.transform);
+        });
+
+      // Apply zoom
+      svg
+        // @ts-expect-error: Type mismatch
+        .call(zoom)
+        // @ts-expect-error: Type mismatch
+        .call(zoom.transform, d3.zoomIdentity.translate(0, 0).scale(0.8));
+    }
+  };
+  // @ts-expect-error: No overload matches this call.
+  const createBoxPlot = async (data: any) => {
     const chart = Plot.plot({
       style: {
         background: "#ffffff",
         color: "black",
       },
+      width: 800,
+      height: 800,
+      margin: 100,
       marks: [
         Plot.boxY(data, {
-          x: "category", // Change this to your category column name
-          y: "value", // Change this to your value column name
+          x: "Category",
+          y: "Value",
+          fill: "steelblue",
+          stroke: "black",
+          strokeWidth: 1,
+          strokeOpacity: 0.5,
+        }),
+        Plot.axisX({
+          fontSize: 20,
+          label: null,
+          tickRotate: 45,
+        }),
+        Plot.axisY({
+          fontSize: 20,
         }),
       ],
     });
@@ -72,6 +119,148 @@ export default function Home() {
     if (chartRef.current) {
       chartRef.current.innerHTML = "";
       chartRef.current.appendChild(chart);
+
+      zoomIn(chartRef.current);
+
+      const svgPic = chartRef.current.querySelector("svg");
+      if (!svgPic) return;
+      const pngDataUrl = await svgToImage(svgPic);
+
+      try {
+        const response = await fetch("/api/analyzeChart", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            image: pngDataUrl,
+            chartData: chartData,
+          }),
+        });
+
+        const result = await response.json();
+        setAnalysis1(result.message);
+      } catch (error) {
+        console.error("Error sending chart:", error);
+      }
+    }
+  };
+
+  const createHistogram = async (data: any) => {
+    const chart = Plot.plot({
+      style: {
+        background: "#ffffff",
+        color: "black",
+      },
+      y: {
+        grid: true,
+      },
+      marks: [
+        Plot.rectY(
+          data,
+          Plot.binX(
+            { y: "count" },
+            {
+              x: "Value",
+              thresholds: 30,
+            }
+          )
+          // {
+          //   fill: "steelblue",
+          //   stroke: "black",
+          //   strokeOpacity: 0.5
+          // }
+        ),
+        Plot.ruleY([0]),
+        Plot.axisX({ label: "Value →" }),
+        Plot.axisY({ label: "↑ Frequency" }),
+      ],
+      height: 400,
+      marginLeft: 60,
+      marginBottom: 40,
+    });
+
+    if (chartRef.current) {
+      chartRef.current.innerHTML = "";
+      chartRef.current.appendChild(chart);
+
+      zoomIn(chartRef.current);
+
+      const svgPic = chartRef.current.querySelector("svg");
+      if (!svgPic) return;
+      const pngDataUrl = await svgToImage(svgPic);
+
+      try {
+        const response = await fetch("/api/analyzeChart", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            image: pngDataUrl,
+            chartData: chartData,
+          }),
+        });
+
+        const result = await response.json();
+        setAnalysis1(result.message);
+      } catch (error) {
+        console.error("Error sending chart:", error);
+      }
+    }
+  };
+
+  const createScatterPlot = async (data: any) => {
+    const chart = Plot.plot({
+      style: {
+        background: "#ffffff",
+      },
+      grid: true,
+      marks: [
+        Plot.dot(data, {
+          x: "Category",
+          y: "Value",
+          fill: "steelblue",
+          stroke: "black",
+          strokeWidth: 1,
+          opacity: 0.5,
+        }),
+        Plot.axisX({ label: "Category →" }),
+        Plot.axisY({ label: "↑ Value" })
+      ],
+      height: 400,
+      width: 800,
+      marginLeft: 60,
+      marginBottom: 40,
+    });
+
+    if (chartRef.current) {
+      chartRef.current.innerHTML = "";
+      chartRef.current.appendChild(chart);
+
+      zoomIn(chartRef.current);
+
+      const svgPic = chartRef.current.querySelector("svg");
+      if (!svgPic) return;
+      const pngDataUrl = await svgToImage(svgPic);
+
+      try {
+        const response = await fetch("/api/analyzeChart", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            image: pngDataUrl,
+            chartData: chartData,
+          }),
+        });
+
+        const result = await response.json();
+        setAnalysis1(result.message);
+      } catch (error) {
+        console.error("Error sending chart:", error);
+      }
     }
   };
 
@@ -81,8 +270,22 @@ export default function Home() {
       Papa.parse(file, {
         header: true,
         complete: results => {
-          setChartData(results.data as ChartData);
-          createBoxPlot(results.data as ChartData);
+          // @ts-expect-error: No overload matches this call.
+          const headers = Object.keys(results.data[0]);
+          console.log("Found columns:", headers);
+
+          const reshapedData = headers.flatMap(column =>
+            results.data.map(row => ({
+              Category: column,
+              // @ts-expect-error: type unknown.
+              Value: parseFloat(row[column]),
+            }))
+          );
+
+          setChartData(reshapedData);
+          // createBoxPlot(reshapedData);
+          // createHistogram(reshapedData);
+          createScatterPlot(reshapedData);
         },
       });
     }
@@ -212,36 +415,48 @@ export default function Home() {
               <span className="text-white animate-text-pulse">-</span> Hey
               there! <span className="text-white animate-text-pulse">-</span>
             </h1>
-            <div className="pt-1">
-              {/* <input
+
+            <label className="flex items-center cursor-pointer">
+              <CloudArrowUpIcon className="h-6 w-6 text-gray-500 mr-2" />
+              <input
                 type="file"
                 accept=".csv"
                 onChange={handleFileUpload}
-                className="block w-full text-sm text-gray-500
-            file:mr-4 file:py-1 file:px-2
-            file:rounded-full file:border-0
-            file:text-sm file:font-semibold
-            file:bg-cyan-600 file:text-white
-            hover:file:bg-cyan-700"
-              /> */}
-            </div>
-            
-             <label className="flex items-center cursor-pointer">
-          <CloudArrowUpIcon className="h-6 w-6 text-gray-500 mr-2" />
-          <input
-            type="file"
-            accept=".csv"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-          <span className="text-sm text-gray-500">Upload CSV</span>
-        </label>
+                className="hidden"
+              />
+              <span className="text-sm text-gray-500">Upload CSV</span>
+            </label>
           </div>
-          <div
-            className="chart-container flex flex-col w-full h-full"
-            ref={chartRef}
+          <div className="flex flex-col justify-between">
+            <div
+              className="chart-container flex flex-col w-full h-full overflow-x-auto"
+              style={{
+                minWidth: "0",
+                minHeight: "400px",
+                marginBottom: "-1rem",
+              }}
+              ref={chartRef}
+            ></div>
+            {analysis1 && (
+              <div
+                ref={analysisRef}
+                tabIndex={-1}
+                className="text-sm text-white mt-[-5rem] focus:outline-none prose prose-invert"
+              >
+                <ReactMarkdown>{analysis1}</ReactMarkdown>
+              </div>
+            )}
+            {/* <div
+            className="chart-container2 flex flex-col w-full h-full overflow-x-auto"
+            style={{ minWidth: "0", minHeight: "400px", marginBottom: "-1rem" }}
+            ref={chartRef2}
           ></div>
+          {analysis2 && (
+            <div className="text-sm text-white mt-4">{analysis2}</div>
+          )} */}
+          </div>
         </div>
+
         <div className="max-w-3xl text-sm mx-auto px-4">
           {messages.map((msg, index) => (
             <div
