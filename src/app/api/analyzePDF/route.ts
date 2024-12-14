@@ -1,32 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+// import pdf from 'pdf-parse';
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 export async function POST(req: NextRequest) {
-  const { image, chartData } = await req.json();
-  // console.log(chartData);
+  const { text } = await req.json();
+  // console.log(pdf);
 
 
   try {
-    // const { image, chartData } = await req.json();
-
     const chatCompletion = await openai.chat.completions.create({
-      model: "gpt-4o",  // Make sure to use correct model name
+      model: "gpt-4o",
       messages: [
         {
           role: "user",
-          content: [
-            { type: "text", text: "You are an expert data analyst. Please analyze the chart and its data and provide a detailed report." },
-            {
-              type: "image_url",
-              image_url: {
-                url: image,
-                detail: "high"
-              }
-            }
-          ],
+          content: `Please analyze this text from a PDF document and provide a detailed summary: ${text}`,
         }
       ],
       max_tokens: 500

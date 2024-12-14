@@ -3,14 +3,20 @@
 import { useState, useRef, useEffect } from "react";
 import * as Plot from "@observablehq/plot";
 import * as d3 from "d3";
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown from "react-markdown";
 import Papa from "papaparse";
+import * as pdfjsLib from "pdfjs-dist";
+import { TextItem } from "pdfjs-dist/types/src/display/api";
+// import { pdfjs } from "react-pdf";
 import { CloudArrowUpIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 
 type Message = {
   role: "user" | "ai";
   content: string;
 };
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 // type ChartData = {
 //   x: number;
@@ -19,14 +25,25 @@ type Message = {
 
 export default function Home() {
   const chartRef = useRef<HTMLDivElement>(null);
-  // const chartRef2 = useRef<HTMLDivElement>(null);
-  const [analysis1, setAnalysis1] = useState<string>("");
-  // const [analysis2, setAnalysis2] = useState<string>("");
+  const [chartType, setChartType] = useState<string>("boxplot");
   const [chartData, setChartData] = useState<
     { Category: string; Value: number }[]
   >([]);
-  // section: sample data
+  const [analysis1, setAnalysis1] = useState<string>("");
+  const [analysis2, setAnalysis2] = useState<string>("");
   const analysisRef = useRef<HTMLDivElement>(null);
+  const analysisRef2 = useRef<HTMLDivElement>(null);
+  const [uploadType, setUploadType] = useState<string>("chart");
+
+  const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([]);
+  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState<Message[]>([
+    { role: "ai", content: "Hello! How can I help you today?" },
+  ]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingRequest, setLoadingRequest] = useState(false);
+
+  // section: sample data
 
   useEffect(() => {
     if (analysis1 && analysisRef.current) {
@@ -34,6 +51,28 @@ export default function Home() {
       analysisRef.current.focus();
     }
   }, [analysis1]);
+
+  useEffect(() => {
+    if (analysis2 && analysisRef2.current) {
+      analysisRef2.current.scrollIntoView({ behavior: "smooth" });
+      analysisRef2.current.focus();
+    }
+  }, [analysis2]);
+
+  useEffect(() => {
+    if (chartData.length > 0) {
+      switch (chartType) {
+        case "histogram":
+          createHistogram(chartData);
+          break;
+        case "scatter":
+          createScatterPlot(chartData);
+          break;
+        default:
+          createBoxPlot(chartData);
+      }
+    }
+  }, [chartType, chartData]);
 
   // Create boxplot
   const svgToImage = async (svg: SVGElement): Promise<string> => {
@@ -86,12 +125,14 @@ export default function Home() {
         .call(zoom.transform, d3.zoomIdentity.translate(0, 0).scale(0.8));
     }
   };
+  // section:
   // @ts-expect-error: No overload matches this call.
   const createBoxPlot = async (data: any) => {
     const chart = Plot.plot({
       style: {
         background: "#ffffff",
         color: "black",
+        fontSize: "20px",
       },
       width: 800,
       height: 800,
@@ -125,7 +166,7 @@ export default function Home() {
       const svgPic = chartRef.current.querySelector("svg");
       if (!svgPic) return;
       const pngDataUrl = await svgToImage(svgPic);
-
+      setLoadingRequest(true);
       try {
         const response = await fetch("/api/analyzeChart", {
           method: "POST",
@@ -140,12 +181,14 @@ export default function Home() {
 
         const result = await response.json();
         setAnalysis1(result.message);
+        setLoadingRequest(false);
       } catch (error) {
         console.error("Error sending chart:", error);
       }
     }
   };
 
+  // section: histogram
   const createHistogram = async (data: any) => {
     const chart = Plot.plot({
       style: {
@@ -189,7 +232,7 @@ export default function Home() {
       const svgPic = chartRef.current.querySelector("svg");
       if (!svgPic) return;
       const pngDataUrl = await svgToImage(svgPic);
-
+      setLoadingRequest(true);
       try {
         const response = await fetch("/api/analyzeChart", {
           method: "POST",
@@ -204,12 +247,14 @@ export default function Home() {
 
         const result = await response.json();
         setAnalysis1(result.message);
+        setLoadingRequest(false);
       } catch (error) {
         console.error("Error sending chart:", error);
       }
     }
   };
 
+  // section: scatter plot
   const createScatterPlot = async (data: any) => {
     const chart = Plot.plot({
       style: {
@@ -226,7 +271,7 @@ export default function Home() {
           opacity: 0.5,
         }),
         Plot.axisX({ label: "Category →" }),
-        Plot.axisY({ label: "↑ Value" })
+        Plot.axisY({ label: "↑ Value" }),
       ],
       height: 400,
       width: 800,
@@ -243,7 +288,7 @@ export default function Home() {
       const svgPic = chartRef.current.querySelector("svg");
       if (!svgPic) return;
       const pngDataUrl = await svgToImage(svgPic);
-
+      setLoadingRequest(true);
       try {
         const response = await fetch("/api/analyzeChart", {
           method: "POST",
@@ -258,13 +303,15 @@ export default function Home() {
 
         const result = await response.json();
         setAnalysis1(result.message);
+        setLoadingRequest(false);
       } catch (error) {
         console.error("Error sending chart:", error);
       }
     }
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // section: file upload
+  const handleCSVUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       Papa.parse(file, {
@@ -274,29 +321,72 @@ export default function Home() {
           const headers = Object.keys(results.data[0]);
           console.log("Found columns:", headers);
 
-          const reshapedData = headers.flatMap(column =>
-            results.data.map(row => ({
-              Category: column,
-              // @ts-expect-error: type unknown.
-              Value: parseFloat(row[column]),
-            }))
-          );
+          const reshapedData = headers
+            .flatMap(column =>
+              results.data.map(row => ({
+                Category: column,
+                Value: parseFloat((row as Record<string, string>)[column]),
+              }))
+            )
+            .filter(d => !isNaN(d.Value));
 
-          setChartData(reshapedData);
+          // setChartData(reshapedData);
           // createBoxPlot(reshapedData);
           // createHistogram(reshapedData);
-          createScatterPlot(reshapedData);
+          // createScatterPlot(reshapedData);
+          setChartData(reshapedData);
+          switch (chartType) {
+            case "histogram":
+              createHistogram(reshapedData);
+              break;
+            case "scatter":
+              createScatterPlot(reshapedData);
+              break;
+            default:
+              createBoxPlot(reshapedData);
+          }
         },
       });
     }
   };
 
-  const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([]);
-  const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "ai", content: "Hello! How can I help you today?" },
-  ]);
-  const [isLoading, setIsLoading] = useState(false);
+  // section: pdf upload
+  const handlePDFUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+      let text = "";
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+
+        text += content.items
+          .filter((item): item is TextItem => "str" in item)
+          .map(item => item.str)
+          .join(" ");
+      }
+      // console.log("TEXT", text);
+      setLoadingRequest(true);
+      const response = await fetch("/api/analyzePDF", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      const data = await response.json();
+      setAnalysis2(data.message);
+      setLoadingRequest(false);
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
 
   const handleSend = async () => {
     if (!message.trim()) return;
@@ -407,43 +497,114 @@ export default function Home() {
       </div>
 
       {/* Messages Container */}
-      <div className="flex-1 flex flex-row overflow-y-auto px-4 pb-32 pt-4">
-        <div className="flex flex-col w-1/3 px-2 border border-gray-700 overflow-y-auto">
-          {/* section: chart */}
-          <div className="flex-1 flex flex-row justify-between">
-            <h1 className="text-xl text-center border-b border-gray-700 font-semibold text-white">
-              <span className="text-white animate-text-pulse">-</span> Hey
-              there! <span className="text-white animate-text-pulse">-</span>
-            </h1>
 
-            <label className="flex items-center cursor-pointer">
-              <CloudArrowUpIcon className="h-6 w-6 text-gray-500 mr-2" />
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <span className="text-sm text-gray-500">Upload CSV</span>
+      <div className="flex-1 flex flex-row overflow-y-auto px-4 pb-32 pt-4 gap-4">
+        {/* <div className="flex flex-col gap-2">
+          <label htmlFor="chart-type" className="text-white text-sm">
+            Choose Upload Type
+          </label>
+          <select
+            id="chart-type"
+            value={uploadType}
+            onChange={e => setUploadType(e.target.value)}
+            className="bg-gray-800 text-sm text-white px-2 py-1 rounded-lg border border-gray-700 hover:border-green-600"
+          >
+            <option value="chart">Plot Chart</option>
+            <option value="pdf">Upload PDF</option>
+          </select>
+        </div> */}
+        <div className="flex flex-col w-1/3 gap-2 py-2 px-2 border border-gray-700 overflow-y-auto">
+          <div className="flex flex-row gap-4 pl-2 items-center mb-2">
+            <label htmlFor="chart-type" className="text-white text-sm">
+              Choose Upload Type
             </label>
+            <select
+              id="chart-type"
+              value={uploadType}
+              onChange={e => setUploadType(e.target.value)}
+              className="bg-gray-800 text-sm text-white px-2 py-1 rounded-lg border border-gray-700 hover:border-green-600"
+            >
+              <option value="chart">Plot Chart</option>
+              <option value="pdf">Upload PDF</option>
+            </select>
+            {uploadType === "chart" && (
+              <div className="flex flex-col">
+                <select
+                  value={chartType}
+                  onChange={e => setChartType(e.target.value)}
+                  className="bg-gray-800 text-sm text-white px-2 py-1 rounded-lg border border-gray-700 hover:border-green-600"
+                >
+                  <option value="boxplot">Box Plot</option>
+                  <option value="histogram">Histogram</option>
+                  <option value="scatter">Scatter Plot</option>
+                </select>
+              </div>
+            )}
           </div>
+          {/* section: chart */}
+          <div className="flex flex-row justify-end">
+            {loadingRequest && (
+              <div className="animate-spin h-5 w-5 text-white">
+                <ArrowPathIcon />
+              </div>
+            )}
+
+            {uploadType === "chart" && (
+              <label className="flex items-center cursor-pointer">
+                <CloudArrowUpIcon className="h-6 w-6 text-gray-500 mr-2" />
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleCSVUpload}
+                  className="hidden"
+                />
+                <span className="text-sm text-gray-500">Upload CSV</span>
+              </label>
+            )}
+
+            {uploadType === "pdf" && (
+              <label className="flex items-center cursor-pointer">
+                <CloudArrowUpIcon className="h-6 w-6 text-gray-500 mr-2" />
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handlePDFUpload}
+                  className="hidden"
+                />
+                <span className="text-sm text-gray-500">Upload PDF</span>
+              </label>
+            )}
+          </div>
+          <hr className="border-gray-700" />
           <div className="flex flex-col justify-between">
-            <div
-              className="chart-container flex flex-col w-full h-full overflow-x-auto"
-              style={{
-                minWidth: "0",
-                minHeight: "400px",
-                marginBottom: "-1rem",
-              }}
-              ref={chartRef}
-            ></div>
+            {uploadType === "chart" && (
+              <div
+                className="chart-container flex flex-col w-full h-full overflow-x-auto"
+                style={{
+                  minWidth: "0",
+                  minHeight: "400px",
+                  marginBottom: "-1rem",
+                }}
+                ref={chartRef}
+              ></div>
+            )}
+            {/* section: analysis */}
             {analysis1 && (
               <div
                 ref={analysisRef}
                 tabIndex={-1}
-                className="text-sm text-white mt-[-5rem] focus:outline-none prose prose-invert"
+                className="text-sm text-white mt-[1rem] focus:outline-none prose prose-invert"
               >
                 <ReactMarkdown>{analysis1}</ReactMarkdown>
+              </div>
+            )}
+            {analysis2 && (
+              <div
+                ref={analysisRef2}
+                tabIndex={-1}
+                className="text-sm text-white mt-[1rem] focus:outline-none prose prose-invert"
+              >
+                <ReactMarkdown>{analysis2}</ReactMarkdown>
               </div>
             )}
             {/* <div
