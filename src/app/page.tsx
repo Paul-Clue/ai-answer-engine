@@ -440,7 +440,8 @@ export default function Home() {
           setFollowUpQuestions(data.message.followUpQuestions);
         }
       } else {
-        console.error("Error:", data);
+        alert("Error: " + data.message);
+        // console.error("Error:", data);
       }
     } catch (error) {
       console.error("Error:", error);
@@ -476,7 +477,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-900">
+    <div className="flex flex-col h-screen bg-black overflow-y-auto">
       {/* Header */}
       <div
         className="flex flex-row justify-between w-full bg-gray-800 p-4 
@@ -618,7 +619,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="max-w-3xl text-sm mx-auto px-4">
+        <div className="max-w-3xl text-xs mx-auto h-[60vh] overflow-y-auto px-4">
           {messages.map((msg, index) => (
             <div
               key={index}
@@ -663,7 +664,7 @@ export default function Home() {
       </div>
 
       {/* Input Area */}
-      <div className="fixed bottom-0 w-full bg-gray-800 border-t border-gray-700 p-4">
+      <div className="fixed bottom-0 w-full bg-gray-800 border-t border-gray-900 p-4">
         <div className="max-w-3xl mx-auto">
           <div className="flex flex-col gap-3 items-center">
             {/* section: follow up questions */}
@@ -687,7 +688,7 @@ export default function Home() {
                 onChange={e => setMessage(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleSend()}
                 placeholder="Type your message..."
-                className="flex-1 w-full rounded-xl border border-gray-700 bg-gray-900 px-4 py-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent placeholder-gray-400"
+                className="flex-1 w-full rounded-xl text-sm border border-gray-700 bg-gray-900 px-4 text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent placeholder-gray-400"
               />
               <button
                 onClick={handleSend}

@@ -5,7 +5,7 @@ const openai = new OpenAI({
 });
 
 export async function POST(req: NextRequest) {
-  const { image, chartData } = await req.json();
+  const { image } = await req.json();
   // console.log(chartData);
 
 

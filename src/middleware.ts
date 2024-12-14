@@ -3,35 +3,38 @@ import type { NextRequest } from "next/server";
 import { ratelimit } from "./lib/ratelimiter";
 
 export async function middleware(request: NextRequest) {
-  const ip = request.headers.get("x-forwarded-for") || 
-  request.headers.get("cf-connecting-ip") || 
-  "127.0.0.1";
+  const ip =
+    request.headers.get("x-forwarded-for") ||
+    request.headers.get("cf-connecting-ip") ||
+    "127.0.0.1";
   // const ip = request.ip || "127.0.0.1";
   try {
-    
+    console.log("Ratelimit middleware ran");
     // const { success, pending, limit, reset, remaining } = await ratelimit.limit(ip);
-    // console.log("MIDDLEWARE RAN", success, pending, limit, reset, remaining);
-    console.log("IP", ip);
+    const { success, limit, remaining } = await ratelimit.limit(ip);
+    if (!success) {
+      console.log("TOO MANY REQUESTS");
+      return NextResponse.json(
+        { message: "Too many requests" },
+        { status: 429 }
+      );
+    }
 
-    // if (!success) {
-    //   console.log("limit", limit);
-    //   console.log("reset", reset);
-    //   console.log("remaining", remaining);
-    //   // return NextResponse.json({ message: "Too many requests" }, { status: 429 });
-    // }
+    // console.log("Pending: ", pending);
+    // console.log("Reset: ", reset);
+    console.log("Limit: ", limit);
+    console.log("Remaining: ", remaining);
 
     const response = NextResponse.next();
 
     return response;
-
-
-
   } catch (error) {
-    console.log("MIDDLEWARE RAN4");
-
+    return NextResponse.json(
+      { message: "Too many requests: " + error },
+      { status: 429 }
+    );
   }
 }
-
 
 // Configure which paths the middleware runs on
 export const config = {
